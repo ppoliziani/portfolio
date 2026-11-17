@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Shithead — 3D Card Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{--gold:#f5c45e;--ink:#f4efe4;--bg:#07090d;--cyan:#19d3c5;--violet:#a855f7;--fire:#ff6a1a}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+  #app canvas{display:block}
+  #top{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(#07090dcc,#07090d00);pointer-events:none}
+  .brand{font-family:Bungee,Impact,sans-serif;font-size:22px;letter-spacing:1px;color:var(--ink);text-shadow:0 2px 0 #000}
+  .brand span{color:var(--gold)}
+  #stats{flex:1;font-size:12px;opacity:.8;text-align:center}
+  .top-btns{display:flex;gap:8px;pointer-events:auto}
+  button{font-family:Inter,sans-serif;font-weight:800;font-size:14px;border:0;border-radius:12px;padding:10px 14px;cursor:pointer;color:#111;background:#e9e3d6;box-shadow:0 3px 0 #0008;transition:transform .08s,opacity .2s}
+  button:active{transform:translateY(2px);box-shadow:0 1px 0 #0008}
+  button.ghost{background:#ffffff14;color:var(--ink);box-shadow:none;padding:8px 12px;font-size:13px}
+  button.primary{background:linear-gradient(#ffd877,#e7a92e)}
+  button.warn{background:linear-gradient(#ff8a5b,#e0452b);color:#fff}
+  button:disabled{opacity:.35;pointer-events:none}
+  #bar{position:fixed;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;align-items:stretch}
+  #bar button{min-width:120px}
+  .hidden{display:none!important}
+  #msg{position:fixed;top:56px;left:50%;transform:translateX(-50%);max-width:92vw;text-align:center;padding:9px 16px;border-radius:999px;background:#000a;backdrop-filter:blur(6px);font-weight:600;font-size:14px;border:1px solid #ffffff1a;transition:opacity .3s;pointer-events:none}
+  #legend{position:fixed;left:12px;bottom:10px;font-size:11px;opacity:.75;display:flex;gap:10px;pointer-events:none}
+  #legend b{font-family:Bungee,sans-serif;font-weight:400}
+  .c2{color:var(--cyan)}.c7{color:var(--violet)}.c10{color:var(--fire)}
+  #modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:18px;z-index:10}
+  .sheet{background:#14171f;border:1px solid #ffffff1c;border-radius:20px;max-width:460px;width:100%;max-height:86vh;overflow:auto;padding:22px 22px 18px;box-shadow:0 20px 60px #000}
+  .sheet h2{font-family:Bungee,sans-serif;font-weight:400;margin:0 0 10px;color:var(--gold)}
+  .sheet ul{padding-left:18px;line-height:1.5;font-size:14px}
+  .sheet .row{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bungee,sans-serif;font-size:22px;background:var(--bg);z-index:20;text-align:center;padding:20px}
+  @media (max-aspect-ratio: 9/10){
+    #bar{top:auto;bottom:calc(36vh);right:10px}
+    #bar button{min-width:0;padding:9px 12px;font-size:13px}
+    .brand{font-size:18px}
+    #stats{font-size:11px}
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="top">
+  <div class="brand">SHIT<span>HEAD</span></div>
+  <div id="stats"></div>
+  <div class="top-btns"><button class="ghost" id="btnRules">Rules</button><button class="ghost" id="btnNew">New</button></div>
+</div>
+<div id="msg">Shuffling…</div>
+<div id="bar">
+  <button id="btnReady" class="primary hidden">Ready</button>
+  <button id="btnPlay" class="primary hidden">Play</button>
+  <button id="btnPickup" class="warn hidden">Pick up</button>
+</div>
+<div id="legend"><span><b class="c2">2</b> reset</span><span><b class="c7">7</b> 7-or-lower</span><span><b class="c10">10</b> burn</span></div>
+<div id="modal" class="hidden"><div class="sheet" id="sheet"></div></div>
+<div id="loading">Shuffling the deck…</div>
+<script>
+  // If the module never boots (e.g. CDN blocked), say so instead of hanging.
+  setTimeout(()=>{ if(!window.__booted){ document.getElementById('loading').textContent='Could not load three.js — check your connection and refresh.'; } }, 12000);
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ================= GAME LOGIC (no rendering) ================= */
+// ==LOGIC START==
+const SUITS = ['♠','♥','♦','♣'];
+const RANK_LABEL = {11:'J',12:'Q',13:'K',14:'A'};
+const rankLabel = r => RANK_LABEL[r] || String(r);
+const isSpecial = r => r === 2 || r === 10;
+
+function makeDeck(){ const d=[]; let id=0; for(const s of SUITS) for(let r=2;r<=14;r++) d.push({id:id++, rank:r, suit:s, slot:0}); return d; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+function canPlay(rank, pile){
+  if (rank === 2 || rank === 10) return true;        // magic cards go on anything
+  if (!pile.length) return true;
+  const top = pile[pile.length-1].rank;
+  if (top === 2) return true;                          // reset: anything goes
+  if (top === 7) return rank <= 7;                     // 7: next must be 7 or lower
+  return rank >= top;
+}
+function activeSource(p){ if(p.hand.length) return 'hand'; if(p.up.length) return 'up'; if(p.down.length) return 'down'; return null; }
+function hasValidMove(p, pile){ const s=activeSource(p); if(!s) return false; if(s==='down') return true; return p[s].some(c=>canPlay(c.rank,pile)); }
+function shouldBurn(pile){
+  if (!pile.length) return false;
+  const r = pile[pile.length-1].rank;
+  if (r === 10) return true;
+  if (pile.length < 4) return false;
+  for (let i=1;i<=4;i++) if (pile[pile.length-i].rank !== r) return false;
+  return true;
+}
+function isOut(p){ return !p.hand.length && !p.up.length && !p.down.length; }
+function mkPlayer(name, cpu){ return {name, cpu, hand:[], up:[], down:[]}; }
+function newGame(){ return {deck:shuffle(makeDeck()), pile:[], burned:[], players:[mkPlayer('You',false), mkPlayer('CPU',true)], turn:0, phase:'deal', winner:null, loser:null}; }
+function dealOne(g, pi, zone, slot){ const c=g.deck.pop(); c.slot=slot; g.players[pi][zone].push(c); return c; }
+function drawUp(g, p){ while(p.hand.length<3 && g.deck.length) p.hand.push(g.deck.pop()); }
+function placeCards(g, pi, cards, src){
+  const p=g.players[pi];
+  for (const c of cards){ const i=p[src].indexOf(c); if(i>=0) p[src].splice(i,1); g.pile.push(c); }
+}
+function resolveAfterPlay(g, pi){
+  const p=g.players[pi];
+  const burn = shouldBurn(g.pile);
+  if (burn){ g.burned.push(...g.pile); g.pile=[]; }
+  drawUp(g, p);
+  if (isOut(p)){ g.phase='over'; g.winner=pi; g.loser=1-pi; return {burn, out:true}; }
+  if (!burn) g.turn = 1-pi;           // burning lets the same player go again
+  return {burn, out:false};
+}
+function blindFlip(g, pi, card){
+  const p=g.players[pi]; const ok = canPlay(card.rank, g.pile);
+  p.down.splice(p.down.indexOf(card),1); g.pile.push(card); return ok;
+}
+function pickUp(g, pi){ const p=g.players[pi]; p.hand.push(...g.pile); const n=g.pile.length; g.pile=[]; g.turn=1-pi; return n; }
+function decideStarter(g){
+  const low = p => { const r=p.hand.filter(c=>!isSpecial(c.rank)).map(c=>c.rank); return r.length?Math.min(...r):99; };
+  return low(g.players[1]) < low(g.players[0]) ? 1 : 0;
+}
+// CPU: put strongest cards face-up, then play lowest legal non-magic set; hoard 2s and 10s.
+function cpuChooseSwap(p){
+  const all=[...p.hand, ...p.up];
+  const score = c => c.rank===10?100 : c.rank===2?90 : c.rank;
+  all.sort((a,b)=>score(b)-score(a));
+  p.up = all.slice(0,3); p.up.forEach((c,i)=>c.slot=i);
+  p.hand = all.slice(3);
+}
+function cpuChooseMove(p, pile){
+  const src = activeSource(p);
+  if (src === 'down') return {type:'blind', card:p.down[Math.floor(Math.random()*p.down.length)]};
+  const cards = p[src];
+  const valid = cards.filter(c=>canPlay(c.rank, pile));
+  if (!valid.length) return {type:'pickup'};
+  const normal = valid.filter(c=>!isSpecial(c.rank));
+  let rank;
+  if (normal.length) rank = Math.min(...normal.map(c=>c.rank));
+  else {
+    const has10 = valid.some(c=>c.rank===10), has2 = valid.some(c=>c.rank===2);
+    rank = (has10 && (pile.length>=5 || !has2)) ? 10 : 2;
+  }
+  return {type:'play', src, cards:cards.filter(c=>c.rank===rank)};
+}
+// ==LOGIC END==
+
+/* ================= RENDERING ================= */
+const PI = Math.PI;
+const CW = 1.5, CH = 2.1, CT = 0.016;
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+$('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07090d);
+scene.fog = new THREE.Fog(0x07090d, 30, 70);
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 200);
+const camTarget = new THREE.Vector3(0, 0, 0.7);
+const camBase = new THREE.Vector3();
+
+scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x1a1208, 0.55));
+const spot = new THREE.SpotLight(0xffe2b0, 900, 60, 0.75, 0.55, 2);
+spot.position.set(2, 22, 6); spot.target.position.set(0,0,0);
+spot.castShadow = true; spot.shadow.mapSize.set(2048,2048); spot.shadow.bias = -0.0004;
+scene.add(spot, spot.target);
+const rim = new THREE.DirectionalLight(0x6f8cff, 0.5); rim.position.set(-10, 8, -12); scene.add(rim);
+const pileLight = new THREE.PointLight(0xff7a2a, 0, 10, 2); pileLight.position.set(0, 1.2, 0); scene.add(pileLight);
+
+/* ---------- canvas textures ---------- */
+function canvasTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); draw(ctx,w,h); const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=renderer.capabilities.getMaxAnisotropy(); return t; }
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+const SPECIAL = {
+  2:{col:'#19d3c5', label:'RESET', sub:'goes on anything'},
+  7:{col:'#a855f7', label:'SEVEN', sub:'next: 7 or lower'},
+  10:{col:'#ff6a1a', label:'BURN', sub:'torch the pile'}
+};
+
+function faceTexture(card){
+  return canvasTex(360, 504, (ctx,W,H)=>{
+    const red = card.suit==='♥' || card.suit==='♦';
+    const ink = red ? '#c0283a' : '#1b1b26';
+    const sp = SPECIAL[card.rank];
+    rr(ctx,3,3,W-6,H-6,34);
+    const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#fffaf0'); g.addColorStop(1,'#ece2cc');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.lineWidth=3; ctx.strokeStyle='#00000022'; ctx.stroke();
+    if (sp){
+      rr(ctx,18,18,W-36,H-36,24); ctx.lineWidth=9; ctx.strokeStyle=sp.col; ctx.stroke();
+    }
+    const label = rankLabel(card.rank);
+    const corner = () => {
+      ctx.fillStyle = sp ? sp.col : ink; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+      ctx.font='64px Bungee, Impact, sans-serif'; ctx.fillText(label, 58, 92);
+      ctx.fillStyle=ink; ctx.font='bold 50px Inter, serif'; ctx.fillText(card.suit, 58, 146);
+    };
+    corner(); ctx.save(); ctx.translate(W,H); ctx.rotate(PI); corner(); ctx.restore();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if (sp){
+      const cg = ctx.createRadialGradient(W/2,H/2-20,10,W/2,H/2-20,120);
+      cg.addColorStop(0, sp.col); cg.addColorStop(1, sp.col+'00');
+      ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(W/2,H/2-20,120,0,PI*2); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.font='150px Bungee, Impact, sans-serif';
+      ctx.shadowColor='#0006'; ctx.shadowBlur=12; ctx.fillText(label, W/2, H/2-14); ctx.shadowBlur=0;
+      ctx.fillStyle=sp.col; ctx.font='34px Bungee, Impact, sans-serif'; ctx.fillText(sp.label, W/2, H/2+105);
+      ctx.fillStyle='#444'; ctx.font='600 22px Inter, sans-serif'; ctx.fillText(sp.sub, W/2, H/2+142);
+    } else if (card.rank>=11 && card.rank<=13){
+      rr(ctx,82,110,W-164,H-220,18); ctx.fillStyle=red?'#c0283a12':'#1b1b2612'; ctx.fill();
+      ctx.lineWidth=4; ctx.strokeStyle=ink; ctx.stroke();
+      ctx.fillStyle=ink; ctx.font='160px Bungee, Impact, sans-serif'; ctx.fillText(label, W/2, H/2-20);
+      ctx.font='bold 64px Inter, serif'; ctx.fillText(card.suit, W/2, H/2+95);
+    } else if (card.rank===14){
+      ctx.fillStyle=ink; ctx.font='bold 230px Inter, serif'; ctx.fillText(card.suit, W/2, H/2+8);
+    } else {
+      ctx.fillStyle=ink; ctx.font='150px Bungee, Impact, sans-serif'; ctx.fillText(label, W/2, H/2-30);
+      ctx.font='bold 80px Inter, serif'; ctx.fillText(card.suit, W/2, H/2+85);
+    }
+  });
+}
+let backTex, feltTex, glowTex;
+function makeSharedTextures(){
+  backTex = canvasTex(360,504,(ctx,W,H)=>{
+    rr(ctx,3,3,W-6,H-6,34);
+    const g=ctx.createLinearGradient(0,0,W,H); g.addColorStop(0,'#6a1122'); g.addColorStop(1,'#22050d');
+    ctx.fillStyle=g; ctx.fill(); ctx.save(); ctx.clip();
+    ctx.strokeStyle='#f5c45e30'; ctx.lineWidth=2;
+    for(let i=-H;i<W+H;i+=26){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i+H,H); ctx.stroke(); ctx.beginPath(); ctx.moveTo(i,H); ctx.lineTo(i+H,0); ctx.stroke(); }
+    ctx.restore();
+    rr(ctx,20,20,W-40,H-40,24); ctx.lineWidth=6; ctx.strokeStyle='#f5c45e'; ctx.stroke();
+    ctx.fillStyle='#22050d'; ctx.beginPath(); ctx.arc(W/2,H/2,78,0,PI*2); ctx.fill();
+    ctx.lineWidth=5; ctx.strokeStyle='#f5c45e'; ctx.stroke();
+    ctx.fillStyle='#f5c45e'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='64px Bungee, Impact, sans-serif'; ctx.fillText('SH', W/2, H/2+4);
+  });
+  feltTex = canvasTex(1536,1152,(ctx,W,H)=>{
+    const g=ctx.createRadialGradient(W/2,H/2,60,W/2,H/2,W*0.62); g.addColorStop(0,'#23805a'); g.addColorStop(0.6,'#145236'); g.addColorStop(1,'#08261a');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    for(let i=0;i<45000;i++){ ctx.fillStyle=`rgba(${Math.random()<.5?0:255},${Math.random()<.5?0:255},${Math.random()<.5?0:255},0.035)`; ctx.fillRect(Math.random()*W,Math.random()*H,2,2); }
+    ctx.strokeStyle='#f5c45e33'; ctx.lineWidth=4; ctx.setLineDash([18,14]); ctx.beginPath(); ctx.arc(W/2,H/2,150,0,PI*2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#ffffff10'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='120px Bungee, Impact, sans-serif';
+    ctx.fillText('SHITHEAD', W/2, H/2-300); ctx.save(); ctx.translate(W/2,H/2+300); ctx.rotate(PI); ctx.fillText('SHITHEAD',0,0); ctx.restore();
+  });
+  glowTex = canvasTex(64,64,(ctx,W,H)=>{ const g=ctx.createRadialGradient(32,32,0,32,32,32); g.addColorStop(0,'#fff'); g.addColorStop(0.3,'#ffffffaa'); g.addColorStop(1,'#fff0'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); });
+}
+
+/* ---------- table ---------- */
+function buildTable(){
+  const felt = new THREE.Mesh(new THREE.PlaneGeometry(26, 19.5), new THREE.MeshStandardMaterial({map:feltTex, roughness:0.95}));
+  felt.rotation.x = -PI/2; felt.receiveShadow = true; scene.add(felt);
+  const shape = (w,h,r) => { const s=new THREE.Shape(); const x=-w/2,y=-h/2; s.moveTo(x+r,y); s.lineTo(x+w-r,y); s.quadraticCurveTo(x+w,y,x+w,y+r); s.lineTo(x+w,y+h-r); s.quadraticCurveTo(x+w,y+h,x+w-r,y+h); s.lineTo(x+r,y+h); s.quadraticCurveTo(x,y+h,x,y+h-r); s.lineTo(x,y+r); s.quadraticCurveTo(x,y,x+r,y); return s; };
+  const outer = shape(28, 21.5, 3.2); outer.holes.push(shape(26, 19.5, 2.4));
+  const rimGeo = new THREE.ExtrudeGeometry(outer, {depth:0.6, bevelEnabled:true, bevelSize:0.25, bevelThickness:0.2, bevelSegments:4, curveSegments:24});
+  const rimMesh = new THREE.Mesh(rimGeo, new THREE.MeshStandardMaterial({color:0x4a2a16, roughness:0.45, metalness:0.1}));
+  rimMesh.rotation.x = -PI/2; rimMesh.position.y = -0.45; rimMesh.castShadow = rimMesh.receiveShadow = true; scene.add(rimMesh);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color:0x0b0d12, roughness:1}));
+  floor.rotation.x=-PI/2; floor.position.y=-4; floor.receiveShadow=true; scene.add(floor);
+}
+
+/* ---------- card meshes ---------- */
+const cardGeo = new THREE.BoxGeometry(CW, CH, CT);
+const sideMat = new THREE.MeshStandardMaterial({color:0xe8dfca, roughness:0.7});
+let backMat;
+const meshes = new Map();   // id -> mesh
+function buildCardMeshes(deck){
+  backMat = new THREE.MeshStandardMaterial({map:backTex, roughness:0.5, alphaTest:0.5});
+  for (const c of deck){
+    const front = new THREE.MeshStandardMaterial({map:faceTexture(c), roughness:0.42, alphaTest:0.5, emissive:0x000000});
+    const m = new THREE.Mesh(cardGeo, [sideMat,sideMat,sideMat,sideMat,front,backMat]);
+    m.rotation.order = 'YXZ'; m.castShadow = true; m.receiveShadow = true;
+    m.userData.card = c; m.userData.front = front;
+    scene.add(m); meshes.set(c.id, m);
+  }
+}
+
+/* ---------- tweens ---------- */
+const tweens = new Map();
+const ease = t => t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+function tweenTo(mesh, tgt, dur){
+  const old = tweens.get(mesh); if (old) old.res();
+  const tp = new THREE.Vector3(...tgt.p);
+  const dist = mesh.position.distanceTo(tp);
+  return new Promise(res=>{
+    tweens.set(mesh, {fp:mesh.position.clone(), fr:[mesh.rotation.x,mesh.rotation.y,mesh.rotation.z], fs:mesh.scale.x,
+      tp, tr:tgt.r, ts:tgt.s||1, t0:performance.now(), dur, arc: dist>3?1.4:dist>0.6?0.45:0, res});
+  });
+}
+function updateTweens(now){
+  for (const [m,t] of tweens){
+    let k = Math.min(1, (now-t.t0)/t.dur); const e = ease(k);
+    m.position.lerpVectors(t.fp, t.tp, e); m.position.y += Math.sin(PI*e)*t.arc;
+    m.rotation.set(t.fr[0]+(t.tr[0]-t.fr[0])*e, t.fr[1]+(t.tr[1]-t.fr[1])*e, t.fr[2]+(t.tr[2]-t.fr[2])*e);
+    m.scale.setScalar(t.fs+(t.ts-t.fs)*e);
+    if (k>=1){ tweens.delete(m); t.res(); }
+  }
+}
+
+/* ---------- layout ---------- */
+let portrait = false;
+const jitters = new Map();
+function jit(c){ if(!jitters.has(c.id)) jitters.set(c.id,{x:(Math.random()-.5)*0.5, z:(Math.random()-.5)*0.5, y:(Math.random()-.5)*0.5}); return jitters.get(c.id); }
+const K = () => portrait
+  ? {deckX:-3.7, burnX:3.7, slotDX:1.7, tz:3.2, handZ:6.5, handY:1.7, handSpan:6.2, cpuZ:-6.2, cpuSpan:4.6, handScale:1.3}
+  : {deckX:-5.6, burnX:5.6, slotDX:1.9, tz:3.2, handZ:6.3, handY:1.4, handSpan:10.5, cpuZ:-6.3, cpuSpan:7.5, handScale:1.15};
+
+let game = null;
+let selected = new Set();
+let swapSel = null;
+const lifted = c => selected.has(c.id) || swapSel === c.id;
+
+function computeLayout(){
+  const C=K(), L=new Map(), g=game;
+  g.deck.forEach((c,i)=>L.set(c.id,{p:[C.deckX,0.03+i*0.012,0], r:[PI/2,0.06,0]}));
+  g.pile.forEach((c,i)=>{ const j=jit(c); L.set(c.id,{p:[j.x,0.03+i*0.014,j.z], r:[-PI/2,j.y,0]}); });
+  g.burned.forEach((c,i)=>{ const j=jit(c); L.set(c.id,{p:[C.burnX+j.x*0.4,0.03+i*0.006,j.z*0.4], r:[PI/2,j.y*1.6,0]}); });
+  g.players.forEach((p,pi)=>{
+    const side = pi===0?1:-1, z = side*C.tz;
+    p.down.forEach(c=>L.set(c.id,{p:[(c.slot-1)*C.slotDX, 0.03, z], r:[PI/2,0,0]}));
+    p.up.forEach(c=>{ const l=lifted(c)?0.4:0; L.set(c.id,{p:[(c.slot-1)*C.slotDX+0.07, 0.08+l, z-side*0.24-l*0.3*side], r:[-PI/2,0.05*(c.slot-1),0]}); });
+  });
+  const me=g.players[0];
+  const hand=[...me.hand].sort((a,b)=>a.rank-b.rank || a.suit.localeCompare(b.suit));
+  const n=hand.length, cw=CW*C.handScale, sp = n>1 ? Math.min(cw*1.04, C.handSpan/(n-1)) : 0;
+  const a=0.8, ny=Math.cos(a), nz=Math.sin(a);
+  hand.forEach((c,i)=>{ const x=(i-(n-1)/2)*sp, l=lifted(c)?1:0, k=i*0.014;
+    L.set(c.id,{p:[x, C.handY+ny*k+l*0.5, C.handZ+nz*k-l*0.6], r:[-PI/2+a,0,0], s:C.handScale}); });
+  const cpu=g.players[1], m=cpu.hand.length, sp2 = m>1 ? Math.min(0.8, C.cpuSpan/(m-1)) : 0;
+  const b=0.5, by=Math.cos(b), bz=Math.sin(b);
+  cpu.hand.forEach((c,i)=>{ const k=i*0.014; L.set(c.id,{p:[(i-(m-1)/2)*sp2, 1.0+by*k, C.cpuZ+bz*k], r:[PI/2+b,0,0]}); });
+  return L;
+}
+function animateLayout(dur=380){
+  const L=computeLayout(), ps=[];
+  for (const [id,t] of L){
+    const m=meshes.get(id); if(!m) continue;
+    const same = Math.abs(m.position.x-t.p[0])<1e-3 && Math.abs(m.position.y-t.p[1])<1e-3 && Math.abs(m.position.z-t.p[2])<1e-3
+      && Math.abs(m.rotation.x-t.r[0])<1e-3 && Math.abs(m.rotation.y-t.r[1])<1e-3 && Math.abs(m.scale.x-(t.s||1))<1e-3;
+    if (!same) ps.push(tweenTo(m,t,dur));
+  }
+  refreshHighlights(); refreshHud();
+  return Promise.all(ps);
+}
+function snapLayout(){ const L=computeLayout(); for(const [id,t] of L){ const m=meshes.get(id); m.position.set(...t.p); m.rotation.set(...t.r); m.scale.setScalar(t.s||1);} }
+
+/* ---------- effects ---------- */
+const PMAX=900, pPos=new Float32Array(PMAX*3), pCol=new Float32Array(PMAX*3), parts=[];
+const pGeo=new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('color', new THREE.BufferAttribute(pCol,3));
+let points;
+function initParticles(){
+  points = new THREE.Points(pGeo, new THREE.PointsMaterial({size:0.45, map:glowTex, vertexColors:true, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending}));
+  points.frustumCulled=false; scene.add(points);
+}
+function emit(n, x,y,z, spread, col, vy=3, life=0.9){
+  for(let i=0;i<n && parts.length<PMAX;i++){
+    const c = typeof col==='function'?col():col;
+    parts.push({x:x+(Math.random()-.5)*spread, y, z:z+(Math.random()-.5)*spread, vx:(Math.random()-.5)*1.5, vy:vy*(0.5+Math.random()), vz:(Math.random()-.5)*1.5, life:life*(0.6+Math.random()*0.6), max:0, c});
+    parts[parts.length-1].max = parts[parts.length-1].life;
+  }
+}
+let fireUntil = 0, shake = 0;
+const rings = [];
+function ringFx(color){
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.85,1,64), new THREE.MeshBasicMaterial({color, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+  m.rotation.x=-PI/2; m.position.y=0.4; scene.add(m); rings.push({m, t0:performance.now(), dur:900});
+  emit(60, 0,0.4,0, 1.6, new THREE.Color(color), 1.6, 0.8);
+}
+function burnFx(){ fireUntil = performance.now()+900; shake = 0.35; pileLight.intensity = 60; }
+function updateFx(now, dt){
+  if (now < fireUntil){
+    emit(14, 0,0.2,0, 1.6, ()=>new THREE.Color().setHSL(0.02+Math.random()*0.1, 1, 0.5+Math.random()*0.2), 4, 0.9);
+  }
+  pileLight.intensity *= 0.93;
+  let n=0;
+  for (let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.life-=dt; if(p.life<=0){ parts.splice(i,1); continue; }
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; p.vy+=0.6*dt; p.vx*=0.98; p.vz*=0.98;
+  }
+  for (const p of parts){ const f=p.life/p.max; pPos[n*3]=p.x; pPos[n*3+1]=p.y; pPos[n*3+2]=p.z; pCol[n*3]=p.c.r*f; pCol[n*3+1]=p.c.g*f; pCol[n*3+2]=p.c.b*f; n++; }
+  pGeo.setDrawRange(0,n); pGeo.attributes.position.needsUpdate=true; pGeo.attributes.color.needsUpdate=true;
+  for (let i=rings.length-1;i>=0;i--){ const r=rings[i]; const k=(now-r.t0)/r.dur; if(k>=1){ scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); rings.splice(i,1); continue; }
+    r.m.scale.setScalar(1+k*5); r.m.material.opacity = 1-k; }
+  if (shake>0.002){ camera.position.set(camBase.x+(Math.random()-.5)*shake, camBase.y+(Math.random()-.5)*shake, camBase.z+(Math.random()-.5)*shake); shake*=0.88; }
+  else camera.position.copy(camBase);
+}
+
+/* ---------- camera ---------- */
+function fitCamera(){
+  const w=innerWidth, h=innerHeight, aspect=w/h;
+  portrait = aspect < 0.9;
+  camera.aspect = aspect; camera.fov = portrait ? 50 : 42; camera.updateProjectionMatrix();
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  const halfW = portrait ? 4.7 : 8.2, halfD = portrait ? 8.6 : 7.6;
+  const d = Math.max(halfW/(t*aspect), halfD/t);
+  const dir = portrait ? new THREE.Vector3(0,1,0.3).normalize() : new THREE.Vector3(0,1,0.62).normalize();
+  camTarget.set(0,0, portrait?0.9:0.9);
+  camBase.copy(camTarget).addScaledVector(dir, d);
+  camera.position.copy(camBase); camera.lookAt(camTarget);
+  renderer.setSize(w,h);
+}
+addEventListener('resize', ()=>{ fitCamera(); if(game) animateLayout(250); });
+
+/* ---------- HUD ---------- */
+let msgTimer;
+function say(text, hold=false){ const el=$('msg'); el.textContent=text; el.style.opacity=1; clearTimeout(msgTimer); if(!hold) msgTimer=setTimeout(()=>{ el.style.opacity=0.85; }, 2500); }
+const plural = (n, r) => n>1 ? `${n}× ${rankLabel(r)}` : `a ${rankLabel(r)}`;
+let busy = false;
+function stats(){ try{ return JSON.parse(localStorage.getItem('shithead-stats')) || {w:0,l:0}; }catch{ return {w:0,l:0}; } }
+function saveStats(s){ try{ localStorage.setItem('shithead-stats', JSON.stringify(s)); }catch{} }
+function refreshHud(){
+  if(!game) return;
+  const cpu=game.players[1], s=stats();
+  $('stats').textContent = `Deck ${game.deck.length} · Pile ${game.pile.length} · CPU holds ${cpu.hand.length} · W${s.w}–L${s.l}`;
+  const me=game.players[0], myTurn = game.phase==='play' && game.turn===0 && !busy;
+  $('btnReady').classList.toggle('hidden', game.phase!=='swap');
+  $('btnReady').disabled = busy;
+  $('btnPlay').classList.toggle('hidden', !(myTurn && activeSource(me)!=='down'));
+  $('btnPlay').disabled = selected.size===0;
+  $('btnPickup').classList.toggle('hidden', !(myTurn && game.pile.length && !hasValidMove(me, game.pile)));
+}
+function refreshHighlights(){
+  if(!game) return;
+  const me=game.players[0], src=activeSource(me);
+  const myTurn = game.phase==='play' && game.turn===0 && !busy;
+  for (const [id,m] of meshes){
+    const c=m.userData.card, f=m.userData.front;
+    let col=0x000000, inten=0;
+    if (selected.has(id) || swapSel===id){ col=0xffb21a; inten=0.55; }
+    else if (myTurn && src && src!=='down' && me[src].includes(c) && canPlay(c.rank, game.pile)){ col=0x3a6bff; inten=0.18; }
+    f.emissive.setHex(col); f.emissiveIntensity=inten;
+  }
+}
+
+/* ---------- flow ---------- */
+function zoneOf(card){
+  for (let pi=0;pi<2;pi++) for (const z of ['hand','up','down']) if (game.players[pi][z].includes(card)) return {pi, zone:z};
+  return null;
+}
+function describe(name, cards, burnRes){
+  const r=cards[0].rank; let s=`${name} played ${plural(cards.length,r)}`;
+  if (burnRes) s += r===10 ? ' — 🔥 BURN! Goes again.' : ' — four of a kind, 🔥 BURN! Goes again.';
+  else if (r===2) s += ' — reset, anything goes.';
+  else if (r===7) s += ' — next must be 7 or lower.';
+  return s;
+}
+async function playUI(pi, cards, src){
+  const name = game.players[pi].name;
+  selected.clear();
+  placeCards(game, pi, cards, src);
+  await animateLayout(430);
+  await afterLanding(pi, cards, name);
+}
+async function afterLanding(pi, cards, name){
+  const r = cards[0].rank, burning = shouldBurn(game.pile);
+  if (burning){ burnFx(); await sleep(650); }
+  else if (r===2) ringFx(0x19d3c5);
+  else if (r===7) ringFx(0xa855f7);
+  resolveAfterPlay(game, pi);
+  say(describe(name, cards, burning));
+  await animateLayout(burning?650:380);
+}
+async function blindUI(pi, card){
+  const p=game.players[pi];
+  const ok = blindFlip(game, pi, card);
+  await animateLayout(520);
+  if (ok) await afterLanding(pi, [card], `${p.name} (blind)`);
+  else {
+    say(`${p.name} flipped a ${rankLabel(card.rank)} blind — no good! Picks up the pile.`);
+    await sleep(900); pickUp(game, pi); jitClear(); await animateLayout(480);
+  }
+}
+function jitClear(){ for (const id of [...jitters.keys()]) if (!game.pile.some(c=>c.id===id) && !game.burned.some(c=>c.id===id)) jitters.delete(id); }
+
+async function nextTurn(){
+  refreshHighlights(); refreshHud();
+  if (game.phase==='over') return gameOver();
+  if (game.turn===1) return cpuTurn();
+  const me=game.players[0], src=activeSource(me);
+  if (src==='down') say('Your turn — face-down time. Tap one and pray.', true);
+  else if (!hasValidMove(me, game.pile)) say('Nothing playable. Pick up the pile.', true);
+  else if (src==='up') say('Your turn — play from your face-up cards.', true);
+}
+async function cpuTurn(){
+  busy=true; refreshHud(); refreshHighlights();
+  await sleep(750);
+  const p=game.players[1], mv=cpuChooseMove(p, game.pile);
+  if (mv.type==='pickup'){ const n=pickUp(game,1); jitClear(); say(`CPU can't play — picks up ${n} card${n>1?'s':''}.`); await animateLayout(480); }
+  else if (mv.type==='blind') await blindUI(1, mv.card);
+  else await playUI(1, mv.cards, mv.src);
+  busy=false; nextTurn();
+}
+
+async function startGame(){
+  busy=true; selected.clear(); swapSel=null; $('modal').classList.add('hidden');
+  for (const m of meshes.values()){ scene.remove(m); m.userData.front.map.dispose(); m.userData.front.dispose(); }
+  meshes.clear(); tweens.clear(); jitters.clear();
+  game = newGame();
+  buildCardMeshes(game.deck);
+  snapLayout(); refreshHud();
+  say('Dealing…', true);
+  for (const zone of ['down','up','hand']) for (let s=0;s<3;s++) for (let pi=0;pi<2;pi++){
+    dealOne(game, pi, zone, s); animateLayout(330); await sleep(85);
+  }
+  await sleep(380);
+  cpuChooseSwap(game.players[1]);
+  game.phase='swap'; busy=false;
+  await animateLayout(400);
+  say('Swap: tap a hand card, then a face-up card to trade. Hit Ready when done.', true);
+}
+async function ready(){
+  if (game.phase!=='swap' || busy) return;
+  swapSel=null; game.phase='play';
+  game.turn = decideStarter(game);
+  await animateLayout(300);
+  say(game.turn===0 ? 'You have the lowest card — you start.' : 'CPU has the lowest card and starts.');
+  await sleep(600); nextTurn();
+}
+function gameOver(){
+  const won = game.winner===0, s=stats(); won ? s.w++ : s.l++; saveStats(s); refreshHud();
+  if (won){ for(let i=0;i<6;i++) setTimeout(()=>ringFx([0xf5c45e,0x19d3c5,0xa855f7][i%3]), i*180); }
+  showSheet(`<h2>${won?'You win!':'You’re the Shithead 💩'}</h2>
+    <p style="font-size:15px;line-height:1.5">${won?'The CPU is left holding the cards. Glorious.':'The CPU emptied out first. Wear the crown with shame.'}</p>
+    <p style="opacity:.7;font-size:13px">Record: ${s.w} wins · ${s.l} losses</p>
+    <div class="row"><button class="primary" id="again">Play again</button></div>`);
+  $('again').onclick = startGame;
+}
+function showSheet(html){ $('sheet').innerHTML=html; $('modal').classList.remove('hidden'); }
+function showRules(){
+  showSheet(`<h2>How to play</h2><ul>
+  <li>Don’t be last. Whoever is left holding cards is the <b>Shithead</b>.</li>
+  <li>You get 3 face-down, 3 face-up and 3 in hand. Before play, swap hand ↔ face-up cards (tap one of each).</li>
+  <li>Play a card <b>equal or higher</b> than the top of the pile. Play several of the same rank at once by tapping them all.</li>
+  <li>Draw back up to 3 while the deck lasts. Can’t play? Pick up the whole pile.</li>
+  <li><b class="c2">2</b> goes on anything and resets the pile.</li>
+  <li><b class="c7">7</b> — the next player must play 7 or lower (or a 2/10).</li>
+  <li><b class="c10">10</b> goes on anything and burns the pile; you go again. Four of a kind in a row also burns.</li>
+  <li>Hand empty and deck gone? Play your face-up cards, then the face-down ones blind. A bad blind flip means picking up.</li>
+  <li>Aces are high.</li></ul>
+  <div class="row"><button class="primary" id="closeR">Got it</button></div>`);
+  $('closeR').onclick=()=>$('modal').classList.add('hidden');
+}
+
+/* ---------- input ---------- */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+renderer.domElement.addEventListener('click', e=>{
+  if (!game || busy) return;
+  ptr.set(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1);
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObjects([...meshes.values()], false)[0];
+  if (hit) onCardTap(hit.object.userData.card);
+});
+function onCardTap(card){
+  const z = zoneOf(card); if (!z || z.pi!==0) return;
+  if (game.phase==='swap'){
+    if (z.zone==='down') return;
+    if (swapSel===null || swapSel===card.id){ swapSel = swapSel===card.id ? null : card.id; animateLayout(220); return; }
+    const other = [...game.players[0].hand, ...game.players[0].up].find(c=>c.id===swapSel);
+    const oz = zoneOf(other);
+    if (oz.zone===z.zone){ swapSel=card.id; animateLayout(220); return; }
+    const me=game.players[0];
+    const h = z.zone==='hand'?card:other, u = z.zone==='up'?card:other;
+    me.hand.splice(me.hand.indexOf(h),1,u); me.up.splice(me.up.indexOf(u),1,h);
+    h.slot = u.slot; swapSel=null; animateLayout(380); return;
+  }
+  if (game.phase!=='play' || game.turn!==0) return;
+  const me=game.players[0], src=activeSource(me);
+  if (z.zone!==src){ say(src==='hand' ? 'Play from your hand first.' : src==='up' ? 'Play your face-up cards first.' : ''); return; }
+  if (src==='down'){ busy=true; refreshHud(); blindUI(0, card).then(()=>{ busy=false; nextTurn(); }); return; }
+  if (!canPlay(card.rank, game.pile)){
+    const top = game.pile[game.pile.length-1];
+    say(top && top.rank===7 ? 'After a 7 you need 7 or lower (or a 2/10).' : `A ${rankLabel(card.rank)} can’t go on a ${rankLabel(top.rank)}.`);
+    return;
+  }
+  const selRank = selected.size ? me[src].find(c=>selected.has(c.id))?.rank : null;
+  if (selRank!==card.rank) selected.clear();
+  selected.has(card.id) ? selected.delete(card.id) : selected.add(card.id);
+  animateLayout(200);
+}
+$('btnPlay').onclick = async ()=>{
+  if (busy || !selected.size) return;
+  const me=game.players[0], src=activeSource(me);
+  const cards = me[src].filter(c=>selected.has(c.id));
+  busy=true; refreshHud(); await playUI(0, cards, src); busy=false; nextTurn();
+};
+$('btnPickup').onclick = async ()=>{
+  if (busy) return; busy=true; selected.clear();
+  const n=pickUp(game,0); jitClear(); say(`You picked up ${n} card${n>1?'s':''}.`);
+  await animateLayout(480); busy=false; nextTurn();
+};
+$('btnReady').onclick = ready;
+$('btnNew').onclick = ()=>{ if(!busy) startGame(); };
+$('btnRules').onclick = showRules;
+$('modal').addEventListener('click', e=>{ if(e.target.id==='modal' && game && game.phase!=='over') $('modal').classList.add('hidden'); });
+addEventListener('keydown', e=>{ if(e.key==='Enter'){ if(game?.phase==='swap') ready(); else $('btnPlay').click(); } });
+
+/* ---------- boot ---------- */
+let last = performance.now();
+function loop(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; updateTweens(now); updateFx(now,dt); renderer.render(scene,camera); requestAnimationFrame(loop); }
+(async ()=>{
+  try { await Promise.race([Promise.all([document.fonts.load('64px Bungee'), document.fonts.load('600 20px Inter'), document.fonts.load('800 20px Inter')]), sleep(2500)]); } catch {}
+  window.__booted = true;
+  makeSharedTextures(); buildTable(); initParticles(); fitCamera();
+  $('loading').classList.add('hidden');
+  requestAnimationFrame(loop);
+  startGame();
+})();
+</script>
+</body>
+</html>
