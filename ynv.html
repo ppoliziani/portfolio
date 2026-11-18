@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>yaniv · 100</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f4f1ec;--ink:#3b3a4a;--soft:#8a879c;--m:#e86f86;--c:#5a6fb0;--y:#c48a2c;--sel:#9b8cff;--cw:80px;--ch:112px;
+        --spec:linear-gradient(90deg,#ff9aa8,#ffcf8a,#f6f08c,#9fe6a6,#8fd8f0,#9aa8ff,#d4a0f0)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation;
+    background:radial-gradient(circle at 50% 45%,#fff6 0,#fff0 45%),conic-gradient(from 80deg at 50% 45%,#ff8c7a,#ffc46b,#f2f07a,#8fe39a,#6fd6e8,#7a9bff,#b98cff,#ff86c8,#ff8c7a)}
+  #bg{position:fixed;inset:0;z-index:0}
+  #bg canvas{display:block;width:100%!important;height:100%!important;image-rendering:pixelated;image-rendering:crisp-edges}
+  #table{position:fixed;inset:0;z-index:5;visibility:hidden}
+
+  #hud{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;padding:12px 14px;gap:10px;pointer-events:none}
+  .title{font-family:'Pixelify Sans';font-weight:600;font-size:22px;letter-spacing:.5px;background:var(--spec);-webkit-background-clip:text;background-clip:text;color:transparent;filter:saturate(1.3) brightness(.85)}
+  .title span{opacity:.6}
+  .sp{flex:1}
+  .hb{pointer-events:auto;font-family:'Pixelify Sans';font-size:13px;color:var(--ink);background:#ffffffb3;border:0;padding:7px 12px;border-radius:999px;box-shadow:0 2px 10px #5a4f8a1a;cursor:pointer}
+  .hb:active{transform:scale(.96)}
+
+  .seat{position:fixed;z-index:15;font-size:12px;min-width:104px;padding:7px 10px;background:#ffffffb8;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:14px;box-shadow:0 4px 18px #5a4f8a1f;transition:box-shadow .3s}
+  .seat .nm{font-family:'Pixelify Sans';font-size:14px;display:flex;justify-content:space-between;gap:8px}
+  .seat .sc{color:var(--soft)}
+  .seat .bar{height:5px;background:#3b3a4a12;margin-top:5px;border-radius:3px;overflow:hidden;position:relative}
+  .seat .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--spec);border-radius:3px;transition:width .6s}
+  .seat .meta{color:var(--soft);font-size:11px;margin-top:3px}
+  .seat.turn{box-shadow:0 0 0 2px #fff,0 0 0 4px #b8acff,0 6px 22px #9b8cff55}
+  .seat.out{opacity:.4;filter:grayscale(1)}
+
+  .card{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);transform-origin:0 0;transition:transform .42s cubic-bezier(.2,.85,.25,1),opacity .3s;perspective:600px;cursor:pointer}
+  .card.notrans,.card.notrans .flip{transition:none!important}
+  .card.old{opacity:.75}
+  .card.flat .face{box-shadow:none}
+  .flip{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .42s}
+  .card.down .flip{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:calc(var(--cw)*.12);overflow:hidden}
+  .front{--k:var(--c);background:linear-gradient(170deg,#ffffff 0%,#f6f3fa 100%);box-shadow:0 4px 14px #4a3f7a26,0 1px 3px #4a3f7a1f;color:var(--k)}
+  .card.m .front{--k:var(--m)} .card.y .front{--k:var(--y)}
+  .front::after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--spec);opacity:.55}
+  .cr{position:absolute;left:7%;top:5%;font-family:'DM Sans',system-ui,sans-serif;font-weight:700;font-size:calc(var(--cw)*.26);line-height:1;letter-spacing:-.04em;display:flex;flex-direction:column;align-items:center;font-variant-numeric:lining-nums}
+  .cr i{font-style:normal;font-size:calc(var(--cw)*.19);margin-top:2px;font-family:system-ui}
+  .cr.two{font-size:calc(var(--cw)*.21);letter-spacing:-.07em}
+  .big.two{font-size:calc(var(--cw)*.38);letter-spacing:-.07em}
+  .big{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'DM Sans',system-ui,sans-serif;font-weight:700;font-size:calc(var(--cw)*.46);line-height:1;letter-spacing:-.04em}
+  .big i{font-style:normal;font-family:system-ui;font-weight:400;font-size:calc(var(--cw)*.24);margin-top:4%;opacity:.85}
+  .v{position:absolute;right:8%;top:6%;font-family:'DM Sans',system-ui,sans-serif;font-weight:500;font-size:calc(var(--cw)*.12);color:var(--soft)}
+  .back{transform:rotateY(180deg);background:radial-gradient(circle at 50% 50%,#ffffffee 0,#ffffff00 55%),conic-gradient(from 200deg,#ff9aa8,#ffcf8a,#f6f08c,#9fe6a6,#8fd8f0,#9aa8ff,#d4a0f0,#ff9aa8);box-shadow:0 4px 14px #4a3f7a26,inset 0 0 0 3px #ffffffaa;display:flex;align-items:center;justify-content:center}
+  .back b{font-family:'Pixelify Sans';font-weight:600;color:#ffffffee;font-size:calc(var(--cw)*.34);text-shadow:0 1px 6px #7a6aa088}
+  .card.sel .front{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--sel),0 10px 24px #9b8cff66}
+  .card.pick .front,.card.pick .back{animation:pulse 1.3s infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 2px #fff,0 0 0 5px #8fd8f0,0 8px 24px #8fd8f0aa}}
+
+  #controls{position:fixed;left:0;right:0;z-index:15;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 10px;pointer-events:none}
+  #info{font-size:13px;text-align:center;flex:0 1 auto;max-width:520px;color:var(--ink);background:#ffffffcc;padding:6px 12px;border-radius:999px;box-shadow:0 2px 10px #4a3f7a1a}
+  #info:empty{display:none}
+  #info .ok{color:#3f8f6a} #info .bad{color:var(--m)}
+  #controls button{pointer-events:auto}
+  .neo{font-family:'Pixelify Sans';font-weight:600;font-size:15px;border:0;cursor:pointer;color:var(--ink);background:#fff;padding:10px 18px;border-radius:999px;box-shadow:0 4px 16px #5a4f8a2a}
+  .neo:active{transform:scale(.96)}
+  .neo.m{color:#fff;background:linear-gradient(90deg,#ff8fa3,#c99bff,#86c8f2);animation:yv 1.6s infinite}
+  @keyframes yv{50%{box-shadow:0 0 0 4px #ffffff,0 0 0 7px #c99bff66,0 6px 22px #c99bff88}}
+  .neo.ghost{background:#ffffffb3;font-size:12px;padding:8px 12px}
+  .hidden{display:none!important}
+  #log{position:fixed;left:50%;transform:translateX(-50%);z-index:15;text-align:center;font-size:13px;color:var(--ink);background:#ffffffb3;border-radius:999px;padding:5px 12px;max-width:92vw;pointer-events:none}
+  #log:empty{display:none}
+
+  #banner{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;pointer-events:none;font-family:'Pixelify Sans';font-weight:700;font-size:clamp(36px,11vw,100px);text-align:center;opacity:0;transform:scale(.92);transition:opacity .25s,transform .35s cubic-bezier(.2,1.4,.4,1);padding:0 16px}
+  #banner span{background:var(--spec);-webkit-background-clip:text;background-clip:text;color:transparent;filter:saturate(1.4) brightness(.9) drop-shadow(0 3px 0 #fff) drop-shadow(0 8px 18px #7a6aa055)}
+  #banner.on{opacity:1;transform:none}
+  #modal{position:fixed;inset:0;z-index:45;background:#f4f1ecb3;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:16px}
+  .sheet{width:100%;max-width:520px;max-height:88vh;overflow:auto;background:#fffffff2;border-radius:22px;box-shadow:0 20px 60px #4a3f7a33;padding:22px}
+  .sheet h2{font-family:'Pixelify Sans';font-weight:600;font-size:28px;margin:0 0 6px;background:var(--spec);-webkit-background-clip:text;background-clip:text;color:transparent;filter:saturate(1.4) brightness(.8)}
+  .sheet p{color:var(--soft);line-height:1.5;font-size:14px}
+  .sheet ul{padding-left:18px;line-height:1.6;font-size:14px}
+  .sheet b{font-weight:700}
+  .row{display:grid;grid-template-columns:52px 1fr 38px 46px 40px;gap:6px;align-items:center;padding:9px 0;border-bottom:1px solid #3b3a4a12;font-size:13px}
+  .row .n{font-family:'Pixelify Sans';font-size:14px}
+  .row .cards{color:var(--soft);font-size:12px;word-break:break-word}
+  .row .add{color:var(--m)} .row .s{text-align:right;font-family:'Pixelify Sans';font-size:15px}
+  .tag{display:inline-block;font-size:10px;padding:1px 6px;margin-left:4px;border-radius:999px;background:#3b3a4a0d}
+  .tag.r{color:#3f8f6a} .tag.o{color:var(--m)} .tag.a{color:#7a63e0} .tag.w{color:#3f8f6a}
+  .sheet .act{display:flex;justify-content:flex-end;margin-top:16px}
+  #loading{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Pixelify Sans';font-size:18px;color:var(--soft);transition:opacity .5s}
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="bg"></div>
+<div id="table"></div>
+<div id="hud">
+  <div class="title">yaniv <span>· 100</span></div>
+  <div class="sp"></div>
+  <button class="hb" id="btnRules">rules</button>
+  <button class="hb" id="btnNew">new</button>
+</div>
+<div id="seats"></div>
+<div id="log"></div>
+<div id="controls">
+  <button class="neo ghost" id="btnSort">SORT</button>
+  <div id="info"></div>
+  <button class="neo m hidden" id="btnYaniv">yaniv!</button>
+</div>
+<div id="banner"></div>
+<div id="modal" class="hidden"><div class="sheet" id="sheet"></div></div>
+<div id="loading">dealing…</div>
+
+<script>
+(() => {
+// ==LOGIC START==
+const SUITS = ['♠','♥','♦','♣'];
+function makeDeck(){ const d=[]; let id=0; for (const s of SUITS) for (let r=1;r<=13;r++) d.push({id:id++, rank:r, suit:s, joker:false});
+  d.push({id:id++, rank:0, suit:'★', joker:true}); d.push({id:id++, rank:0, suit:'★', joker:true}); return d; }
+function shuffle(a){ for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const val = c => c.joker ? 0 : Math.min(c.rank, 10);
+const rl = c => c.joker ? '★' : ({1:'A',11:'J',12:'Q',13:'K'}[c.rank] || String(c.rank));
+const handVal = h => h.reduce((a,c)=>a+val(c), 0);
+const YANIV_MAX = 7;
+
+// Returns {type, ordered} for a legal discard, or null.
+function analyzeMeld(cards){
+  const n = cards.length; if (!n) return null;
+  if (n === 1) return {type:'single', ordered:[...cards]};
+  const jk = cards.filter(c=>c.joker), nj = cards.filter(c=>!c.joker);
+  if (!nj.length) return n === 2 ? {type:'set', ordered:[...cards]} : null;
+  if (!jk.length && nj.every(c=>c.rank===nj[0].rank)) return {type:'set', ordered:[...cards]};
+  if (n >= 3 && nj.every(c=>c.suit===nj[0].suit)){
+    const sorted = [...nj].sort((a,b)=>a.rank-b.rank);
+    for (let i=1;i<sorted.length;i++) if (sorted[i].rank===sorted[i-1].rank) return null;
+    const gaps = (sorted[sorted.length-1].rank - sorted[0].rank + 1) - sorted.length;
+    if (gaps > jk.length) return null;
+    const pool = [...jk], ordered = [];
+    sorted.forEach((c,i)=>{ if (i) for (let r=sorted[i-1].rank+1; r<c.rank; r++) ordered.push(pool.pop()); ordered.push(c); });
+    let hi = sorted[sorted.length-1].rank;
+    while (pool.length){ if (hi < 13){ ordered.push(pool.pop()); hi++; } else ordered.unshift(pool.pop()); }
+    return {type:'run', ordered};
+  }
+  return null;
+}
+function pickOptions(set){
+  if (!set || !set.ordered.length) return [];
+  if (set.type === 'run'){ const o=set.ordered; return o.length>1 ? [o[0], o[o.length-1]] : [o[0]]; }
+  return [...set.ordered];
+}
+function newMatch(names){ return {players:names.map((n,i)=>({name:n, cpu:i>0, hand:[], score:0, out:false})), deck:[], pile:[], turn:0, starter:0, phase:'idle', round:0}; }
+function prepareRound(g, all){ g.deck=shuffle([...all]); g.pile=[]; g.players.forEach(p=>p.hand=[]); g.round++; }
+function dealRound(g){ for (let k=0;k<5;k++) for (const p of g.players) if (!p.out) p.hand.push(g.deck.pop());
+  g.pile.push({type:'single', ordered:[g.deck.pop()], by:-1}); g.turn=g.starter; g.phase='turn'; }
+function nextAlive(g, i){ let j=i; do { j=(j+1)%g.players.length; } while (g.players[j].out); return j; }
+function discardStep(g, pi, cards){
+  const p=g.players[pi], m=analyzeMeld(cards); if (!m) throw new Error('bad meld');
+  const prev = g.pile[g.pile.length-1];
+  for (const c of cards) p.hand.splice(p.hand.indexOf(c), 1);
+  g.pile.push({type:m.type, ordered:m.ordered, by:pi});
+  return prev;
+}
+function drawStep(g, pi, src, prev){
+  const p=g.players[pi];
+  if (src === 'deck'){
+    if (!g.deck.length){ const top=g.pile.pop(); g.deck=shuffle(g.pile.flatMap(s=>s.ordered)); g.pile=[top]; }
+    p.hand.push(g.deck.pop());
+  } else { prev.ordered.splice(prev.ordered.indexOf(src), 1); p.hand.push(src); }
+  g.turn = nextAlive(g, pi);
+}
+function callYaniv(g, pi){
+  const alive = g.players.map((_,i)=>i).filter(i=>!g.players[i].out);
+  const tot = i => handVal(g.players[i].hand), ct = tot(pi);
+  const others = alive.filter(i=>i!==pi);
+  const lowest = Math.min(...others.map(tot));
+  const beaten = lowest < ct;                                   // someone strictly lower
+  const assafers = beaten ? others.filter(i=>tot(i)===lowest) : [];
+  const tied = others.filter(i=>tot(i)===ct);
+  const res = [];
+  for (const i of alive){
+    const p=g.players[i], before=p.score;
+    // caller: +30 if beaten, else 0. Lowest hand(s) and anyone who tied the caller: 0. Everyone else: their hand.
+    const add = i===pi ? (beaten ? 30 : 0) : (assafers.includes(i) || tied.includes(i)) ? 0 : tot(i);
+    let s = before+add, note='';
+    if (s === 100){ s = 50; note='reset'; } else if (s > 100){ note='out'; p.out=true; }
+    p.score = s; res.push({i, total:tot(i), add, before, score:s, note});
+  }
+  g.starter = assafers.length ? [...assafers].sort((a,b)=>tot(a)-tot(b))[0] : pi;
+  g.phase = 'roundover';
+  const over = g.players[0].out || g.players.filter(p=>!p.out).length <= 1;
+  return {caller:pi, ct, assafers, tied, res, over, won: over && !g.players[0].out};
+}
+// ---- CPU ----
+function allMelds(hand){ const out=[], n=hand.length;
+  for (let mask=1; mask<(1<<n); mask++){ const cs=hand.filter((_,i)=>mask&(1<<i)); if (analyzeMeld(cs)) out.push(cs); }
+  return out; }
+function synergy(c, rem){
+  if (c.joker) return 3;
+  let b=0;
+  if (rem.some(x=>!x.joker && x.rank===c.rank)) b += val(c)*0.6+1;
+  if (rem.some(x=>!x.joker && x.suit===c.suit && x.rank!==c.rank && Math.abs(x.rank-c.rank)<=2)) b += val(c)*0.3+0.5;
+  return b;
+}
+function cpuDecide(g, pi){
+  const p=g.players[pi], t=handVal(p.hand);
+  const opp=g.players.filter((q,i)=>i!==pi && !q.out), minOpp=Math.min(...opp.map(q=>q.hand.length));
+  if (t <= YANIV_MAX && (t <= 3 || (t <= 5 && minOpp >= 3) || minOpp >= 4 || Math.random() < 0.35)) return {yaniv:true};
+  const prev=g.pile[g.pile.length-1], picks=pickOptions(prev);
+  let best=null;
+  for (const cards of allMelds(p.hand)){
+    const rem=p.hand.filter(c=>!cards.includes(c)), rv=handVal(rem);
+    const dv=handVal(cards);
+    // taking back a card worth as much as you dumped makes no progress, so nudge towards the deck
+    const opts=[{src:'deck', v:6.3, b:0}, ...picks.map(c=>({src:c, v:val(c) + (val(c)>=dv ? 1.5 : 0), b:synergy(c,rem)}))];
+    for (const o of opts){ const s = rv + o.v - o.b - cards.length*0.01; if (!best || s < best.s) best={s, cards, src:o.src}; }
+  }
+  return best;
+}
+// ==LOGIC END==
+
+/* ================= UI ================= */
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const table = $('table');
+const ALL = makeDeck();
+const els = new Map();
+const colCls = c => c.joker ? 'y' : (c.suit==='♥'||c.suit==='♦') ? 'm' : 'c';
+const cardTxt = c => c.joker ? 'Joker' : rl(c)+c.suit;
+for (const c of ALL){
+  const el=document.createElement('div');
+  el.className='card down notrans '+colCls(c);
+  const two = rl(c).length>1 ? ' two' : '';
+  const badge = c.joker || c.rank===1 ? `<div class="v">=${val(c)}</div>` : '';
+  el.innerHTML=`<div class="flip"><div class="face front"><div class="cr${two}">${c.joker?'★':rl(c)}<i>${c.joker?'':c.suit}</i></div><div class="big${two}">${c.joker?'★':rl(c)}<i>${c.joker?'joker':c.suit}</i></div>${badge}</div><div class="face back"><b>y</b></div></div>`;
+  el.addEventListener('click', ()=>onCardClick(c));
+  table.appendChild(el); els.set(c.id, el);
+}
+
+let g=null, selected=new Set(), busy=false, sortMode='suit', CWp=80, CHp=112;
+const jit=new Map();
+const J = c => { if(!jit.has(c.id)) jit.set(c.id,{x:(Math.random()-.5)*14, y:(Math.random()-.5)*10, r:(Math.random()-.5)*24}); return jit.get(c.id); };
+function stats(){ try { return JSON.parse(localStorage.getItem('yaniv-stats')) || {w:0,l:0}; } catch { return {w:0,l:0}; } }
+function saveStats(s){ try { localStorage.setItem('yaniv-stats', JSON.stringify(s)); } catch {} }
+
+function sortedHand(h){
+  const so={'♠':0,'♥':1,'♣':2,'♦':3,'★':4};
+  return [...h].sort(sortMode==='suit' ? (a,b)=>so[a.suit]-so[b.suit] || a.rank-b.rank : (a,b)=>(a.joker?99:a.rank)-(b.joker?99:b.rank) || so[a.suit]-so[b.suit]);
+}
+function layout(){
+  if (!g) return;
+  table.style.visibility='visible';
+  const W=innerWidth, H=innerHeight;
+  CWp = Math.round(Math.max(54, Math.min(96, W/5.4, H/7.4))); CHp = Math.round(CWp*1.4);
+  document.documentElement.style.setProperty('--cw', CWp+'px'); document.documentElement.style.setProperty('--ch', CHp+'px');
+  const pos = new Map();
+  const midY = Math.round(H*0.42 - CHp/2);
+  const deckX = W/2 - CWp*1.95;
+  g.deck.forEach((c,i)=>pos.set(c.id,{x:deckX - i*0.3, y:midY - i*0.3, r:0, s:1, z:10+i, down:true, flat:i>0 && i<g.deck.length-1}));
+  const dcx = W/2 + CWp*0.55;
+  const top = g.pile[g.pile.length-1];
+  let oz=0;  // older discards: always below the live set (max 54 cards → z 100..154)
+  g.pile.slice(0,-1).forEach(set=>set.ordered.forEach(c=>{ const j=J(c); pos.set(c.id,{x:dcx-CWp*0.62+j.x*0.6, y:midY-CHp*0.1+j.y*0.6, r:j.r*0.6, s:1, z:100+(oz++), down:false, old:true}); }));
+  if (top){ const n=top.ordered.length, step=CWp*0.52; top.ordered.forEach((c,k)=>pos.set(c.id,{x:dcx-CWp/2+(k-(n-1)/2)*step, y:midY, r:0, s:1, z:400+k, down:false})); }
+  // human
+  const me=g.players[0], hand=sortedHand(me.hand), n=hand.length;
+  const handY = H - CHp - 16;
+  const sp = n>1 ? Math.min(CWp*1.06, (W-20-CWp)/(n-1)) : 0;
+  const x0 = (W - (CWp + (n-1)*sp))/2;
+  hand.forEach((c,i)=>pos.set(c.id,{x:x0+i*sp, y:handY - (selected.has(c.id)?CHp*0.24:0), r:0, s:1, z:600+i, down:false}));
+  // cpus
+  const reveal = g.phase==='roundover';
+  const seatY = 58, sc = innerWidth<520 && g.players.length===4 ? 0.48 : 0.56;
+  const nc = g.players.length-1;
+  g.players.forEach((p,pi)=>{ if (!pi) return;
+    const cx = W*(pi-0.5)/nc, m=p.hand.length, step=CWp*sc*(reveal?(nc===3?0.42:0.62):0.32);
+    const wTot = CWp*sc + (m-1)*step;
+    p.hand.forEach((c,i)=>pos.set(c.id,{x:cx - wTot/2 + i*step, y:seatY, r:0, s:sc, z:500+i, down:!reveal}));
+    const seat=$('seat'+pi); seat.style.left = Math.max(6, Math.min(W-seat.offsetWidth-6, cx - seat.offsetWidth/2))+'px'; seat.style.top = (seatY + CHp*sc + 8)+'px';
+  });
+  const s0=$('seat0'); s0.style.left='10px';
+  s0.style.top = (handY - CHp*0.24 - 46 - s0.offsetHeight - 6)+'px';
+  $('controls').style.top = (handY - CHp*0.24 - 44)+'px';
+  $('log').style.top = (midY + CHp + 12)+'px';
+  // apply
+  const myTurn = g.phase==='turn' && g.turn===0 && !busy;
+  const picks = myTurn ? pickOptions(top) : [];
+  const deckTop = g.deck[g.deck.length-1];
+  for (const c of ALL){
+    const p=pos.get(c.id), el=els.get(c.id); if (!p) continue;
+    el.style.transform=`translate(${p.x}px,${p.y}px) rotate(${p.r}deg) scale(${p.s})`;
+    el.style.zIndex=p.z;
+    el.classList.toggle('down', p.down);
+    el.classList.toggle('old', !!p.old);
+    el.classList.toggle('flat', !!p.flat);
+    el.classList.toggle('sel', selected.has(c.id));
+    el.classList.toggle('pick', myTurn && (picks.includes(c) || c===deckTop));
+  }
+  updateHud();
+}
+function updateHud(){
+  g.players.forEach((p,i)=>{
+    const seat=$('seat'+i);
+    seat.innerHTML=`<div class="nm"><span>${p.name}</span><span class="sc">${p.score}</span></div><div class="bar"><i style="width:${Math.min(100,p.score)}%"></i></div><div class="meta">${p.out?'out':`${p.hand.length} card${p.hand.length===1?'':'s'}`}${i===0&&!p.out?` · Σ ${handVal(p.hand)}`:''}</div>`;
+    seat.classList.toggle('turn', g.phase==='turn' && g.turn===i);
+    seat.classList.toggle('out', p.out);
+  });
+  const me=g.players[0], myTurn = g.phase==='turn' && g.turn===0 && !busy;
+  $('btnYaniv').classList.toggle('hidden', !(myTurn && handVal(me.hand)<=YANIV_MAX));
+  const info=$('info');
+  if (!myTurn){ info.innerHTML = g.phase==='turn' && !me.out ? `<span style="opacity:.6">${g.players[g.turn].name} is thinking…</span>` : ''; return; }
+  const cards=[...selected].map(id=>ALL[id]);
+  if (!cards.length) info.innerHTML = `Σ ${handVal(me.hand)} · select cards to discard`;
+  else { const m=analyzeMeld(cards);
+    info.innerHTML = m ? `<span class="ok">${m.type} ▸ −${handVal(cards)}</span> · tap the deck or a glowing card` : `<span class="bad">✕ not a single, set or run</span>`; }
+}
+function log(t){ $('log').textContent = t; }
+async function banner(t, ms=1300){ const b=$('banner'); b.innerHTML=`<span>${t}</span>`; b.classList.add('on'); await sleep(ms); b.classList.remove('on'); await sleep(200); }
+
+/* ---- flow ---- */
+const CPU_NAMES=['mika','juno','oli'];
+function getPref(){ try { return +localStorage.getItem('yaniv-cpus') || 2; } catch { return 2; } }
+function setupGame(){
+  const cur=getPref();
+  $('sheet').innerHTML = `<h2>new game</h2><p>How many CPU opponents?</p>
+    <div style="display:flex;gap:10px;margin-top:10px">${[1,2,3].map(n=>`<button class="neo ${n===cur?'':'ghost'}" data-n="${n}" style="flex:1;font-size:18px">${n}</button>`).join('')}</div>
+    <p style="opacity:.6;font-size:12px;margin-top:14px">Total of 7 or less to call Yaniv. Exactly 100 → back to 50. Over 100 → out.</p>`;
+  $('modal').classList.remove('hidden');
+  $('sheet').querySelectorAll('button[data-n]').forEach(b=>b.onclick=()=>{ const n=+b.dataset.n; try{ localStorage.setItem('yaniv-cpus', n); }catch{} newGame(n); });
+}
+async function newGame(n){
+  g = newMatch(['you', ...CPU_NAMES.slice(0,n)]); g.starter=Math.floor(Math.random()*g.players.length);
+  $('seats').innerHTML = g.players.map((_,i)=>`<div class="seat" id="seat${i}"></div>`).join('');
+  await startRound();
+}
+async function startRound(){
+  busy=true; selected.clear(); jit.clear(); $('modal').classList.add('hidden'); log('');
+  prepareRound(g, ALL); layout();
+  requestAnimationFrame(()=>els.forEach(el=>el.classList.remove('notrans')));
+  await sleep(420);
+  for (let k=0;k<5;k++) for (const p of g.players) if (!p.out){ p.hand.push(g.deck.pop()); layout(); await sleep(45); }
+  g.pile.push({type:'single', ordered:[g.deck.pop()], by:-1});
+  g.turn=g.starter; g.phase='turn';
+  log(`round ${g.round} · ${g.players[g.turn].name} starts`);
+  await sleep(300); busy=false; nextTurn();
+}
+function nextTurn(){
+  layout();
+  if (g.phase!=='turn') return;
+  if (g.turn!==0) cpuTurn();
+}
+function describe(name, cards, src){
+  return `${name} ▸ dumps ${cards.map(cardTxt).join(' ')} ▸ ${src==='deck' ? 'draws' : 'takes '+cardTxt(src)}`;
+}
+async function cpuTurn(){
+  busy=true; layout();
+  await sleep(750);
+  const pi=g.turn, d=cpuDecide(g, pi);
+  if (d.yaniv) return yanivUI(pi);
+  const prev=discardStep(g, pi, d.cards); layout(); await sleep(520);
+  drawStep(g, pi, d.src, prev); log(describe(g.players[pi].name, d.cards, d.src)); layout(); await sleep(420);
+  busy=false; nextTurn();
+}
+async function humanTurn(src){
+  const cards=[...selected].map(id=>ALL[id]);
+  if (!analyzeMeld(cards)){ $('info').innerHTML = `<span class="bad">select a single, set or run to discard first</span>`; return; }
+  busy=true; selected.clear();
+  const prev=discardStep(g, 0, cards); layout(); await sleep(420);
+  drawStep(g, 0, src, prev); log(describe('you', cards, src)); layout(); await sleep(380);
+  busy=false; nextTurn();
+}
+async function yanivUI(pi){
+  busy=true;
+  const r=callYaniv(g, pi); layout();
+  await banner(`${g.players[pi].name}: yaniv!`);
+  if (r.assafers.length) await banner(`assaf! ${r.assafers.map(i=>g.players[i].name).join(' + ')}`);
+  showResults(r);
+}
+function showResults(r){
+  const rows = r.res.map(x=>{
+    const p=g.players[x.i];
+    const tags = (x.i===r.caller ? `<span class="tag ${r.assafers.length?'o':'w'}">${r.assafers.length?'CAUGHT':'YANIV'}</span>` : '')
+      + (r.assafers.includes(x.i) ? '<span class="tag a">ASSAF</span>' : '') + (r.tied.includes(x.i) ? '<span class="tag a">DRAW</span>' : '')
+      + (x.note==='reset' ? '<span class="tag r">100→50</span>' : '') + (x.note==='out' ? '<span class="tag o">OUT</span>' : '');
+    return `<div class="row"><div class="n">${p.name}</div><div class="cards">${p.hand.map(cardTxt).join(' ')}${tags}</div><div>Σ${x.total}</div><div class="add">+${x.add}</div><div class="s">${x.score}</div></div>`;
+  }).join('');
+  let head, sub, btn;
+  if (r.over){
+    const s=stats(); r.won ? s.w++ : s.l++; saveStats(s);
+    head = r.won ? 'last one standing' : 'game over';
+    sub = (r.won ? 'Every rival went past 100.' : 'You went over 100. Game over.') + ` <br><span style="opacity:.6">Record ${s.w}–${s.l}</span>`;
+    btn = 'new game';
+  } else {
+    head = `round ${g.round}`;
+    const nm=i=>g.players[i].name;
+    sub = r.assafers.length ? `${nm(r.caller)} called Yaniv on ${r.ct} but ${r.assafers.map(nm).join(' + ')} had less: +30 to ${nm(r.caller)}.`
+        : `${nm(r.caller)} called Yaniv on ${r.ct} and scores nothing.` ;
+    if (r.tied.length) sub += ` ${r.tied.map(nm).join(' + ')} drew level and score nothing.`;
+    btn = 'next round';
+  }
+  $('sheet').innerHTML = `<h2>${head}</h2><p>${sub}</p>${rows}<div class="act"><button class="neo" id="btnNext">${btn}</button></div>`;
+  $('modal').classList.remove('hidden');
+  $('btnNext').onclick = () => r.over ? setupGame() : startRound();
+}
+function onCardClick(c){
+  if (!g || busy || g.phase!=='turn' || g.turn!==0) return;
+  const me=g.players[0];
+  if (me.hand.includes(c)){ selected.has(c.id) ? selected.delete(c.id) : selected.add(c.id); layout(); return; }
+  if (g.deck.includes(c)) return humanTurn('deck');
+  if (pickOptions(g.pile[g.pile.length-1]).includes(c)) return humanTurn(c);
+}
+function showRules(){
+  $('sheet').innerHTML = `<h2>rules</h2><ul>
+  <li>Keep your score <b>under 100</b>. Lowest hand wins each round.</li>
+  <li>Card values: A = 1, 2–10 are worth their number, <b>J, Q and K are worth 10</b>, Joker = 0.</li>
+  <li>Your turn: discard a <b>single</b>, a <b>set</b> (2+ of the same rank) or a <b>run</b> (3+ in a row, same suit; jokers fill gaps). Then take a card from the <b>deck</b> or from the <b>previous player’s discard</b> (any card of a set, an end card of a run).</li>
+  <li>Tap cards to select, then tap the deck or a glowing card.</li>
+  <li><b>YANIV</b>: at the start of your turn, if your hand totals 7 or less, call it. Everyone else adds their hand total; you add 0.</li>
+  <li><b>DRAW</b>: anyone with the same total as the caller scores 0.</li>
+  <li><b>ASSAF</b>: if anyone has a lower total, the caller takes <b>+30</b>, the lowest hand scores 0, and everyone else adds their hand as normal.</li>
+  <li>Hit <b>exactly 100</b> → reset to 50. Go <b>over 100</b> → you’re out.</li>
+  <li>Outlast every CPU to win. Choose 1–3 opponents with “new”.</li></ul>
+  <div class="act"><button class="neo" id="btnClose">got it</button></div>`;
+  $('modal').classList.remove('hidden');
+  $('btnClose').onclick = () => $('modal').classList.add('hidden');
+}
+$('btnYaniv').onclick = () => { if (!busy && g.phase==='turn' && g.turn===0 && handVal(g.players[0].hand)<=YANIV_MAX) yanivUI(0); };
+$('btnSort').onclick = () => { sortMode = sortMode==='suit' ? 'rank' : 'suit'; $('btnSort').textContent = sortMode==='suit' ? 'sort ♠' : 'sort #'; layout(); };
+$('btnSort').textContent = 'sort ♠';
+$('btnRules').onclick = showRules;
+$('btnNew').onclick = () => { if (!busy || !g || g.phase==='roundover') setupGame(); };
+$('modal').addEventListener('click', e => { if (e.target.id==='modal' && g && g.phase==='turn') $('modal').classList.add('hidden'); });
+addEventListener('resize', layout);
+
+(async ()=>{
+  try { await Promise.race([Promise.all([document.fonts.load('600 20px "Pixelify Sans"'), document.fonts.load('14px "DM Sans"')]), sleep(1200)]); } catch {}
+  $('loading').style.opacity=0; setTimeout(()=>$('loading').remove(), 500);
+  setupGame();
+})();
+})();
+</script>
+
+<!-- Background -->
+<script type="module">
+// Softly pixelated spectral gradient: a three.js shader rendered at low resolution and
+// upscaled with crisp pixels. The game works without it.
+import * as THREE from 'three';
+const PX = 8;  // size of one "pixel" in CSS px
+const host = document.getElementById('bg');
+const renderer = new THREE.WebGLRenderer({antialias:false});
+renderer.setPixelRatio(1);
+host.appendChild(renderer.domElement);
+const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const uniforms = { uTime:{value:0}, uRes:{value:new THREE.Vector2(1,1)} };
+const mat = new THREE.ShaderMaterial({ uniforms,
+  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
+  fragmentShader:`
+    precision highp float;
+    uniform float uTime; uniform vec2 uRes; varying vec2 vUv;
+    float bayer2(vec2 a){ a=floor(a); return fract(a.x/2.+a.y*a.y*.75); }
+    float bayer4(vec2 a){ return bayer2(.5*a)*.25+bayer2(a); }
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float noise(vec2 p){ vec2 i=floor(p), f=fract(p), u=f*f*(3.-2.*f);
+      return mix(mix(hash(i),hash(i+vec2(1,0)),u.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x), u.y); }
+    void main(){
+      vec2 frag = floor(vUv*uRes);
+      vec2 uv = (frag+.5)/uRes;
+      float asp = uRes.x/uRes.y;
+      vec2 p = (uv-.5)*vec2(asp,1.);
+      float t = uTime;
+      vec2 w = vec2(noise(p*1.4+vec2(t*.04,0.)), noise(p*1.4+vec2(4.1,-t*.035)));
+      vec2 q = p + (w-.5)*.35;
+      // eight spectral colours placed around the screen in chart order, blended like a mesh gradient
+      vec3 pal[8];
+      pal[0]=vec3(1.,.47,.43);  pal[1]=vec3(1.,.70,.40);  pal[2]=vec3(.97,.88,.43); pal[3]=vec3(.52,.87,.55);
+      pal[4]=vec3(.39,.81,.90); pal[5]=vec3(.43,.55,1.);  pal[6]=vec3(.69,.50,1.);  pal[7]=vec3(1.,.50,.77);
+      vec2 S = vec2(max(asp,.75)*.62, .62);
+      vec3 acc = vec3(0.); float ws = 0.;
+      for (int k=0; k<8; k++){
+        float fk = float(k);
+        float a = -.2 + fk/8.*6.2831853 + .25*sin(t*.05+fk);
+        vec2 c = vec2(cos(a), sin(a))*S*(.9+.1*sin(t*.07+fk*1.7));
+        vec2 d = q-c;
+        float wk = 1./pow(dot(d,d)+.02, 2.);
+        acc += wk*pal[k]; ws += wk;
+      }
+      vec3 col = acc/ws;
+      float r = length(q/S);
+      col = mix(col, vec3(1.), exp(-(r/.38)*(r/.38))*.45);   // soft light core
+      float lv = 30.;
+      col = floor(col*lv + bayer4(frag)) / lv;               // gentle ordered dither
+      gl_FragColor = vec4(col, 1.);
+    }`
+});
+scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), mat));
+function size(){ const w=Math.ceil(innerWidth/PX), h=Math.ceil(innerHeight/PX); renderer.setSize(w, h, false); uniforms.uRes.value.set(w, h); }
+size(); addEventListener('resize', size);
+function loop(now){ uniforms.uTime.value = now/1000; renderer.render(scene, cam); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
